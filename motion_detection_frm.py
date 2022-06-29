@@ -174,7 +174,7 @@ def main():
     kernel = np.ones((5, 5))
     diff_image = cv2.dilate(diff_image, kernel, 1) # cv2.dilate(diff_image, None, iterations=2)
 
-    # only take different areas that are different enough (>20 / 255)
+    # only take different areas that are different enough
     thresh_image = cv2.threshold(src=diff_image, thresh=20, maxval=255, type=cv2.THRESH_BINARY)[1] #cv2.threshold(diff_image, 25, 255, cv2.THRESH_BINARY)[1]
     if debug_mode:
         #cv2.imshow("thresh_image", thresh_image)
@@ -182,12 +182,10 @@ def main():
 
     # find and optionally draw contours
     contours, _ = cv2.findContours(image=thresh_image, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE) #cv2.findContours(thresh_image.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # comment below to stop drawing contours
     #cv2.drawContours(image=inp_curr_image, contours=contours, contourIdx=-1, color=(0, 255, 0), thickness=2, lineType=cv2.LINE_AA)
-    # uncomment 6 lines below to stop drawing rectangles
     # for contour in contours:
     #     if cv2.contourArea(contour) < 50:
-    #         # too small: skip!
+    #         # too small
     #         continue
     #     (x, y, w, h) = cv2.boundingRect(contour)
     #     cv2.rectangle(img=inp_curr_image, pt1=(x, y), pt2=(x + w, y + h), color=(0, 255, 0), thickness=2)
