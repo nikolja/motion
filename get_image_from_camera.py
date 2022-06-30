@@ -9,4 +9,8 @@ video_capture = cv2.VideoCapture(0)
 ret, image = video_capture.read()
 cv2.imwrite(sys.argv[1], image)
 
+cv2.imshow('image', image)
+cv2.waitKey(0)
+
 video_capture.release()
+cv2.destroyAllWindows()
