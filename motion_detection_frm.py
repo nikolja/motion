@@ -14,6 +14,7 @@ min_area_size: int = 1000
 sum_area_size: int = 2000
 show_bounding: bool = True
 weighted_alpha: float = 0.5
+threshold_val: int = 20
 debug_mode: bool = False
 
 def show_usage():
@@ -22,30 +23,33 @@ def show_usage():
     logging.info("options")
     logging.info(" --inp_prev_file  [arg] - input previous image from file")
     logging.info(" --inp_curr_file  [arg] - input current image from file")
-    logging.info(" --out_mdet_file  [arg] - output image if we have found motion")
-    logging.info(" --inp_curr_icam  [arg] - input camera index as current image")
-    logging.info(" --min_area_size  [arg] - minimum area size of motion detector")
-    logging.info(" --sum_area_size  [arg] - sum of area size around motion")
-    logging.info(" --show_bounding  [arg] - draw green box around motion")
-    logging.info(" --weighted_alpha [arg] - average filter between input images")
-    logging.info(" --debug_mode     [arg] - debug mode flag")
+    logging.info(" --out_mdet_file  [arg] - output image if motion found")
+    logging.info(" --inp_curr_icam  [arg] - input camera index as current image instead --inp_curr_file (def is %d)", inp_curr_icam)
+    logging.info(" --min_area_size  [arg] - minimum area size of motion detector (def is %d)", min_area_size)
+    logging.info(" --sum_area_size  [arg] - sum of area size around motion (def is %d)", sum_area_size)
+    logging.info(" --show_bounding  [arg] - draw green box around motion (def is %d)", int(show_bounding))
+    logging.info(" --weighted_alpha [arg] - average filter between input images (def is %f)", weighted_alpha)
+    logging.info(" --threshold_val  [arg] - depending on the light/dark between images (def is %d)", threshold_val)
+    logging.info(" --debug_mode     [arg] - debug mode flag (def is %d)", debug_mode)
+    logging.info(" --info                 - print settings and exit")
     logging.info(" --help                 - print usage information and exit")
 
 def show_settings():
-    logging.info("motion detection settings:")
-    logging.info("inp_prev_file:  %s", inp_prev_file)
-    logging.info("inp_curr_file:  %s", inp_curr_file)
-    logging.info("out_mdet_file:  %s", out_mdet_file)
-    logging.info("inp_curr_icam:  %d", inp_curr_icam)
-    logging.info("min_area_size:  %d", min_area_size)
-    logging.info("sum_area_size:  %d", sum_area_size)
-    logging.info("show_bounding:  %d", show_bounding)
-    logging.info("weighted_alpha: %f", weighted_alpha)
-    logging.info("debug_mode   :  %d", debug_mode)
+    logging.info("motion detection settings")
+    logging.info("inp_prev_file :  %s", inp_prev_file)
+    logging.info("inp_curr_file :  %s", inp_curr_file)
+    logging.info("out_mdet_file :  %s", out_mdet_file)
+    logging.info("inp_curr_icam :  %d", inp_curr_icam)
+    logging.info("min_area_size :  %d", min_area_size)
+    logging.info("sum_area_size :  %d", sum_area_size)
+    logging.info("show_bounding :  %d", show_bounding)
+    logging.info("weighted_alpha:  %f", weighted_alpha)
+    logging.info("threshold_val :  %d", threshold_val)
+    logging.info("debug_mode    :  %d", debug_mode)
 
 def setup_argv():
     # setup motion detector from arguments
-    global inp_prev_file, inp_curr_file, out_mdet_file, inp_curr_icam, min_area_size, sum_area_size, show_bounding, weighted_alpha, debug_mode
+    global inp_prev_file, inp_curr_file, out_mdet_file, inp_curr_icam, min_area_size, sum_area_size, show_bounding, weighted_alpha, threshold_val, debug_mode
     argi: int = 0
     for arg in sys.argv[1:]:
         if arg=="--inp_prev_file":
@@ -72,9 +76,15 @@ def setup_argv():
         elif arg=="--weighted_alpha":
             if len(sys.argv)>argi+2:
                 weighted_alpha = float(sys.argv[argi+2])
+        elif arg=="--threshold_val":
+            if len(sys.argv)>argi+2:
+                threshold_val = int(sys.argv[argi+2])            
         elif arg=="--debug_mode":
             if len(sys.argv)>argi+2:
-                debug_mode = int(sys.argv[argi+2])              
+                debug_mode = int(sys.argv[argi+2])
+        elif arg=="--info":
+            show_settings()
+            return False                      
         elif arg=="--help" or arg=="-h" or arg=="/?" or arg=="?":
             show_usage()
             return False
@@ -162,8 +172,10 @@ def main():
     # prepare images; grayscale and blur
     prepared_curr_image = cv2.cvtColor(inp_curr_image, cv2.COLOR_BGR2GRAY)
     prepared_curr_image = cv2.GaussianBlur(prepared_curr_image, (21, 21), 0) # (5, 5)
+    prepared_curr_image = cv2.blur(prepared_curr_image, (5, 5))
     prepared_prev_image = cv2.cvtColor(inp_prev_image, cv2.COLOR_BGR2GRAY)
     prepared_prev_image = cv2.GaussianBlur(prepared_prev_image, (21, 21), 0) # (5, 5)
+    prepared_prev_image = cv2.blur(prepared_prev_image, (5, 5))
     weighted_alpha = 0.5 # background lighting range
     prepared_prev_image =  cv2.addWeighted(prepared_curr_image, weighted_alpha, prepared_prev_image, (1.0 - weighted_alpha), 0)
     
@@ -175,11 +187,13 @@ def main():
     diff_image = cv2.dilate(diff_image, kernel, 1) # cv2.dilate(diff_image, None, iterations=2)
 
     # only take different areas that are different enough
-    # if change in between prev and current frame is greater than (20) it will draw white color (255)
-    thresh_image = cv2.threshold(src=diff_image, thresh=20, maxval=255, type=cv2.THRESH_BINARY)[1] #cv2.threshold(diff_image, 25, 255, cv2.THRESH_BINARY)[1]
+    # if change in between prev and current frame is greater than (threshold_val) it will draw white color (255)
+    # "thresh" depending on the light/dark between frames, change the threshold_val (anything pixel value over threshold_val will become 255(white))
+    thresh_image = cv2.threshold(src=diff_image, thresh=threshold_val, maxval=255, type=cv2.THRESH_BINARY)[1] #cv2.threshold(diff_image, 25, 255, cv2.THRESH_BINARY)[1]
     if debug_mode:
-        #cv2.imshow("thresh_image", thresh_image)
+        cv2.imshow("thresh_image", thresh_image)
         cv2.imwrite("thresh_image.jpg", thresh_image)
+        #cv2.waitKey(0)
 
     # find and optionally draw contours
     contours, _ = cv2.findContours(image=thresh_image, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE) #cv2.findContours(thresh_image.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -214,7 +228,7 @@ def main():
         contour_indx_cur += 1
     logging.info("len(contours_detected): %d", len(contours_detected))
     logging.info("contour_area_sum: %d", contour_area_sum)
-    # draw contour with max area
+    # if motion found
     if contour_indx_max >= 0 and contour_area_sum > sum_area_size:
         (x, y, w, h) = contours_detected[contour_indx_max]
         if show_bounding:
@@ -233,11 +247,17 @@ def main():
         logging.info("(contour_area_sum > sum_area_size): %d",  (contour_area_sum > sum_area_size))
         logging.info("no motion found anywhere")
 
+    if debug_mode:
+        #if contour_indx_max >= 0 and contour_area_sum > sum_area_size:
+        cv2.imshow(out_mdet_file, inp_curr_image)
+        cv2.imshow(inp_prev_file, inp_prev_image)
+        cv2.waitKey(0)
+
     # cleanup the camera and close any open windows
     if video_capture is not None:  
         video_capture.release()
-    #if debug_mode:
-    #    cv2.destroyAllWindows()
+    if debug_mode:
+        cv2.destroyAllWindows()
 
     logging.info("motion detection finished")
 
