@@ -175,6 +175,7 @@ def main():
     diff_image = cv2.dilate(diff_image, kernel, 1) # cv2.dilate(diff_image, None, iterations=2)
 
     # only take different areas that are different enough
+    # if change in between prev and current frame is greater than (20) it will draw white color (255)
     thresh_image = cv2.threshold(src=diff_image, thresh=20, maxval=255, type=cv2.THRESH_BINARY)[1] #cv2.threshold(diff_image, 25, 255, cv2.THRESH_BINARY)[1]
     if debug_mode:
         #cv2.imshow("thresh_image", thresh_image)
